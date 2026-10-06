@@ -1,0 +1,161 @@
+from datetime import datetime
+
+import requests
+
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.mysql.hooks.mysql import MySqlHook
+
+
+API_URL = (
+    "https://de1.api.radio-browser.info/"
+    "json/stations/search?countrycode=ID&limit=100000"
+)
+
+
+def extract_transform_load():
+
+    # =========================
+    # 1. EXTRACT
+    # =========================
+    response = requests.get(
+        API_URL,
+        headers={"User-Agent": "FlowPraktikum/1.0"},
+        timeout=120,
+    )
+
+    response.raise_for_status()
+
+    stations = response.json()
+
+    print(f"Data berhasil diambil dari API: {len(stations)} stasiun")
+
+
+    # =========================
+    # 2. PREPROCESSING / TRANSFORM
+    # =========================
+    data = []
+
+    for station in stations:
+
+        stationuuid = station.get("stationuuid")
+
+        # Buang data yang tidak memiliki ID unik
+        if not stationuuid:
+            continue
+
+        name = station.get("name")
+        country = station.get("country")
+        language = station.get("language")
+
+        # Membersihkan data teks
+        name = name.strip() if name else None
+        country = country.strip() if country else None
+        language = language.strip() if language else None
+
+        # Menangani data numerik kosong
+        bitrate = station.get("bitrate") or 0
+        votes = station.get("votes") or 0
+        lastcheckok = station.get("lastcheckok") or 0
+
+        data.append(
+            (
+                stationuuid,
+                name,
+                country,
+                language,
+                station.get("codec"),
+                bitrate,
+                votes,
+                station.get("homepage"),
+                station.get("url"),
+                station.get("lastchangetime"),
+                lastcheckok,
+            )
+        )
+
+    print(f"Data setelah preprocessing: {len(data)} stasiun")
+
+
+    # =========================
+    # 3. CREATE TABLE
+    # =========================
+    hook = MySqlHook(mysql_conn_id="mysql-local")
+
+    hook.run(
+        """
+        CREATE TABLE IF NOT EXISTS radio_stations (
+            stationuuid VARCHAR(255) PRIMARY KEY,
+            name TEXT,
+            country VARCHAR(100),
+            language TEXT,
+            codec VARCHAR(50),
+            bitrate INT,
+            votes INT,
+            homepage TEXT,
+            url TEXT,
+            lastchangetime VARCHAR(100),
+            lastcheckok INT
+        )
+        """
+    )
+
+
+    # =========================
+    # 4. LOAD KE MYSQL
+    # =========================
+    insert_sql = """
+        INSERT INTO radio_stations (
+            stationuuid,
+            name,
+            country,
+            language,
+            codec,
+            bitrate,
+            votes,
+            homepage,
+            url,
+            lastchangetime,
+            lastcheckok
+        )
+        VALUES (
+            %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s
+        )
+        ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            country = VALUES(country),
+            language = VALUES(language),
+            codec = VALUES(codec),
+            bitrate = VALUES(bitrate),
+            votes = VALUES(votes),
+            homepage = VALUES(homepage),
+            url = VALUES(url),
+            lastchangetime = VALUES(lastchangetime),
+            lastcheckok = VALUES(lastcheckok)
+    """
+
+    for row in data:
+        hook.run(
+            insert_sql,
+            parameters=row,
+        )
+
+    print(
+        f"ETL selesai. {len(data)} data radio "
+        "berhasil diproses ke MySQL."
+    )
+
+
+with DAG(
+    dag_id="radio_browser_etl",
+    start_date=datetime(2026, 1, 1),
+    schedule="0 * * * *",
+    catchup=False,
+    tags=["radio", "etl"],
+) as dag:
+
+    etl_radio = PythonOperator(
+        task_id="extract_transform_load_radio",
+        python_callable=extract_transform_load,
+    )

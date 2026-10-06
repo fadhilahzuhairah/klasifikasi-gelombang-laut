@@ -1,0 +1,49 @@
+{
+    "name": "bmkg-api",
+    "version": "0.1.2",
+    "description": "CLI & library BMKG: wilayah adm4, prakiraan cuaca, peringatan dini CAP, dan data gempabumi.",
+    "type": "module",
+    "license": "UNLICENSED",
+    "sideEffects": false,
+    "keywords": [
+        "bmkg",
+        "cuaca",
+        "prakiraan",
+        "wilayah",
+        "adm4",
+        "indonesia"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "bin": {
+        "bmkg": "./dist/cli.js"
+    },
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "exports": {
+        ".": "./dist/index.js",
+        "./cli": "./dist/cli.js"
+    },
+    "files": [
+        "dist",
+        "base.csv",
+        "base.json"
+    ],
+    "scripts": {
+        "dev": "bun run src/cli.ts",
+        "build:data": "node scripts/build-data.js",
+        "build": "bun run build:data && bun build src/index.ts --target node --outdir dist --format esm --sourcemap=inline && bun build src/cli.ts --target node --outdir dist --format esm --sourcemap=inline && node -e \"require('fs').copyFileSync('base.csv','dist/base.csv')\" && node -e \"require('fs').copyFileSync('base.json','dist/base.json')\"",
+        "start": "node dist/cli.js",
+        "prepublishOnly": "bun run build"
+    },
+    "devDependencies": {
+        "@types/bun": "latest"
+    },
+    "peerDependencies": {
+        "typescript": "^5"
+    },
+    "dependencies": {
+        "fast-xml-parser": "^5.3.2"
+    }
+}

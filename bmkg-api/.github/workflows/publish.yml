@@ -1,0 +1,78 @@
+name: Publish npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Custom tag/release name (ex: v0.1.1). If empty, uses package.json version."
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (npm with retries)
+        run: |
+          npm config set fetch-retries 6
+          npm config set fetch-retry-factor 2
+          npm config set fetch-retry-mintimeout 1000
+          npm config set fetch-retry-maxtimeout 60000
+          npm config set registry https://registry.npmjs.org/
+          for i in 1 2 3 4 5; do
+            npm install && exit 0
+            echo "Retry $i..." >&2
+            sleep $((i*10))
+          done
+          echo "Install failed after retries" >&2
+          exit 1
+
+      - name: Build package (includes base.json/base.csv copy)
+        run: bun run build
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}
+          npm publish --access public
+
+      - name: Read package version
+        id: pkg
+        run: echo "PKG_VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_ENV
+
+      - name: Prepare tag name
+        run: |
+          TAG_NAME="${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+          if [ -z "$TAG_NAME" ]; then
+            if [ -n "${{ github.event.inputs.version }}" ]; then
+              TAG_NAME="${{ github.event.inputs.version }}"
+            else
+              TAG_NAME="v${PKG_VERSION}"
+            fi
+          fi
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          release_name: ${{ env.TAG_NAME }}
+          draft: false
+          prerelease: false
+          body: |
+            Automated release for bmkg-api v${{ env.PKG_VERSION }}.
+            - npm publish via workflow
+            - includes base.csv/base.json assets in package
