@@ -4,3 +4,5 @@ pandas
 mysql-connector-python
 scikit-learn
 matplotlib
+streamlit
+joblib
