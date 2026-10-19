@@ -39,61 +39,104 @@
 # EVALUASI MODEL
 # ============================================================
 elif halaman == "Evaluasi Model":
-    st.title("📊 Evaluasi Model")
-    st.write(
-        "Bagian ini menampilkan metrik evaluasi yang ikut disimpan dari notebook. "
-        "Metrik yang tidak tersedia dalam file model tidak dibuat atau diperkirakan."
+    st.markdown(
+        """
+        <div class="hero">
+            <div class="hero-eyebrow">MODEL PERFORMANCE</div>
+            <h1>Evaluasi Model</h1>
+            <p>
+                Lihat ringkasan performa model Decision Tree berdasarkan
+                metrik evaluasi yang tersimpan dari proses pelatihan.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     acc = bundle.get("test_accuracy")
     cv_mean = bundle.get("cv_mean_accuracy")
     cv_std = bundle.get("cv_std_accuracy")
 
+    st.markdown("### Ringkasan performa model")
+
     e1, e2, e3 = st.columns(3)
+
     e1.metric(
-        "Akurasi data testing",
+        "Akurasi Data Testing",
         f"{acc * 100:.2f}%" if acc is not None else "Tidak tersedia",
     )
+
     e2.metric(
-        "Rata-rata 5-fold CV",
+        "Rata-rata 5-Fold CV",
         f"{cv_mean * 100:.2f}%" if cv_mean is not None else "Tidak tersedia",
     )
+
     e3.metric(
-        "Standar deviasi CV",
+        "Standar Deviasi CV",
         f"{cv_std:.4f}" if cv_std is not None else "Tidak tersedia",
     )
 
-    st.markdown("### Bagaimana membaca metrik?")
-    st.markdown(
-        """
-        - **Akurasi testing** menunjukkan proporsi prediksi yang sesuai dengan label
-          aktual pada data testing.
-        - **Rata-rata 5-fold cross-validation** merangkum akurasi dari lima pembagian
-          data selama validasi silang.
-        - **Standar deviasi CV** menggambarkan variasi skor antar-fold; nilainya perlu
-          dilihat bersama rata-rata CV.
-        """
-    )
+    st.divider()
+
+    st.markdown("### Memahami hasil evaluasi")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### Akurasi data testing")
+        st.write(
+            "Menunjukkan proporsi prediksi yang sesuai dengan label "
+            "aktual pada data pengujian."
+        )
+
+        st.markdown("#### Rata-rata 5-Fold Cross-Validation")
+        st.write(
+            "Merangkum rata-rata skor akurasi dari lima pembagian "
+            "data selama proses validasi silang."
+        )
+
+    with col2:
+        st.markdown("#### Standar deviasi CV")
+        st.write(
+            "Menggambarkan variasi skor antar-fold. Nilainya perlu "
+            "dibaca bersama rata-rata cross-validation."
+        )
+
+        st.markdown("#### Catatan evaluasi")
+        st.write(
+            "Nilai metrik ditampilkan sesuai informasi yang tersimpan "
+            "di dalam bundle model."
+        )
 
     importance = bundle.get("feature_importance")
+
     if importance:
+        st.divider()
         st.markdown("### Kontribusi relatif fitur")
+
         importance_df = pd.DataFrame(importance)
+
         if {"feature", "importance"}.issubset(importance_df.columns):
-            importance_df = importance_df.sort_values("importance", ascending=True)
+            importance_df = importance_df.sort_values(
+                "importance", ascending=True
+            )
+
             st.bar_chart(importance_df.set_index("feature"))
+
             st.caption(
-                "Feature importance menunjukkan kontribusi relatif fitur dalam "
-                "pembentukan pohon, bukan hubungan sebab-akibat."
+                "Feature importance menunjukkan kontribusi relatif fitur "
+                "dalam pembentukan pohon, bukan hubungan sebab-akibat."
             )
     else:
-        st.info("Informasi feature importance tidak ditemukan di file model.")
+        st.info(
+            "Informasi feature importance tidak ditemukan "
+            "di dalam file model."
+        )
 
     st.caption(
-        "Confusion matrix dan classification report tidak ditampilkan karena "
-        "keduanya tidak disimpan dalam bundle model yang digunakan aplikasi ini."
+        "Confusion matrix dan classification report tidak ditampilkan "
+        "karena keduanya tidak disimpan dalam bundle model yang digunakan."
     )
-
 
 # ============================================================
 # CATATAN DI SELURUH APLIKASI
